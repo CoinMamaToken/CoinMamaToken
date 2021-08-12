@@ -880,7 +880,7 @@ contract CoinMama is ERC20, Ownable {
     IUniswapV2Router02 public uniswapV2Router;
     address public immutable uniswapV2Pair;
  
-    address payable public operationalallet = 0x388654d492375EcfCC8dFA56BDc87c7a2dab3380;
+    address payable public operationalallet = 0xd504c96CeF351FdDa111dCB9420a10784de0EB7d;
     address public deadWallet = 0x000000000000000000000000000000000000dEaD;
  
     bool private swapping;
@@ -892,7 +892,7 @@ contract CoinMama is ERC20, Ownable {
 
     uint256 public  BNBRewardsFee = 8;
     uint256 public  liquidityFee = 1;
-    uint256 public  marketingAndBuybackFee = 5;
+    uint256 public  marketingAndBuybackFee = 6;
     uint256 public  burnFee = 1;
     uint256 public  totalFees = BNBRewardsFee.add(liquidityFee).add(marketingAndBuybackFee);
     uint256 public maxSoldAmount = 10000000 ether;
