@@ -1,3 +1,5 @@
+//SPDX-License-Identifier: UNLICENSED 
+
 pragma solidity ^0.6.2;
  
 abstract contract Context {
@@ -75,7 +77,7 @@ contract Ownable is Context {
     }
 }
 
-interface IUniswapV2Pair {
+interface IPancakeV2Pair {
     event Approval(address indexed owner, address indexed spender, uint value);
     event Transfer(address indexed from, address indexed to, uint value);
 
@@ -126,7 +128,7 @@ interface IUniswapV2Pair {
     function initialize(address, address) external;
 }
 
-interface IUniswapV2Factory {
+interface IPancakeV2Factory {
     event PairCreated(address indexed token0, address indexed token1, address pair, uint);
 
     function feeTo() external view returns (address);
@@ -143,7 +145,7 @@ interface IUniswapV2Factory {
 }
 
 
-interface IUniswapV2Router01 {
+interface IPancakeV2Router01 {
     function factory() external pure returns (address);
     function WETH() external pure returns (address);
 
@@ -241,7 +243,7 @@ interface IUniswapV2Router01 {
 
 // pragma solidity >=0.6.2;
 
-interface IUniswapV2Router02 is IUniswapV2Router01 {
+interface IPancakeV2Router02 is IPancakeV2Router01 {
     function removeLiquidityETHSupportingFeeOnTransferTokens(
         address token,
         uint liquidity,
@@ -877,25 +879,24 @@ contract DividendPayingToken is ERC20, DividendPayingTokenInterface, DividendPay
 contract CoinMama is ERC20, Ownable {
     using SafeMath for uint256;
  
-    IUniswapV2Router02 public uniswapV2Router;
-    address public immutable uniswapV2Pair;
+    IPancakeV2Router02 public PancakeV2Router;
+    address public immutable PancakeV2Pair;
  
-    address payable public operationalallet = 0xd504c96CeF351FdDa111dCB9420a10784de0EB7d;
-    address public deadWallet = 0x000000000000000000000000000000000000dEaD;
+    address payable public operationalWallet = 0xd504c96CeF351FdDa111dCB9420a10784de0EB7d;
+    address private constant deadWallet = 0x000000000000000000000000000000000000dEaD;
  
     bool private swapping;
     bool public trigger = true;
  
     CoinMamaDividendTracker public dividendTracker;
  
-    uint256 public swapTokensAtAmount = 20000000000 * (10**18);
+    uint256 public swapTokensAtAmount = 200000000 * (10**18);
 
     uint256 public  BNBRewardsFee = 8;
     uint256 public  liquidityFee = 1;
     uint256 public  marketingAndBuybackFee = 6;
     uint256 public  burnFee = 1;
     uint256 public  totalFees = BNBRewardsFee.add(liquidityFee).add(marketingAndBuybackFee);
-    uint256 public maxSoldAmount = 10000000 ether;
     
     uint256 private lastSwap;
  
@@ -915,7 +916,7 @@ contract CoinMama is ERC20, Ownable {
  
     event UpdateDividendTracker(address indexed newAddress, address indexed oldAddress);
  
-    event UpdateUniswapV2Router(address indexed newAddress, address indexed oldAddress);
+    event UpdatePancakeV2Router(address indexed newAddress, address indexed oldAddress);
  
     event ExcludeFromFees(address indexed account, bool isExcluded);
     event ExcludeFromPunishment(address indexed account, bool isExcluded);
@@ -953,30 +954,31 @@ contract CoinMama is ERC20, Ownable {
     	dividendTracker = new CoinMamaDividendTracker();
  
  
-    	IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
-         // Create a uniswap pair for this new token
-        address _uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
-            .createPair(address(this), _uniswapV2Router.WETH());
+    	IPancakeV2Router02 _PancakeV2Router = IPancakeV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
+         // Create a Pancake pair for this new token
+        address _PancakeV2Pair = IPancakeV2Factory(_PancakeV2Router.factory())
+            .createPair(address(this), _PancakeV2Router.WETH());
  
-        uniswapV2Router = _uniswapV2Router;
-        uniswapV2Pair = _uniswapV2Pair;
+        PancakeV2Router = _PancakeV2Router;
+        PancakeV2Pair = _PancakeV2Pair;
  
-        _setAutomatedMarketMakerPair(_uniswapV2Pair, true);
+        _setAutomatedMarketMakerPair(_PancakeV2Pair, true);
  
         // exclude from receiving dividends
         dividendTracker.excludeFromDividends(address(dividendTracker));
         dividendTracker.excludeFromDividends(address(this));
         dividendTracker.excludeFromDividends(owner());
         dividendTracker.excludeFromDividends(address(0));
-        dividendTracker.excludeFromDividends(address(_uniswapV2Router));
+        dividendTracker.excludeFromDividends(address(_PancakeV2Router));
+        dividendTracker.excludeFromDividends(deadWallet);
  
         // exclude from paying fees or having max transaction amount
         excludeFromFees(owner(), true);
-        excludeFromFees(operationalallet, true);
+        excludeFromFees(operationalWallet, true);
         excludeFromFees(address(this), true);
         
         excludeFromPunishment(owner(), true);
-        excludeFromPunishment(operationalallet, true);
+        excludeFromPunishment(operationalWallet, true);
         excludeFromPunishment(address(this), true);
  
  
@@ -1003,17 +1005,17 @@ contract CoinMama is ERC20, Ownable {
         newDividendTracker.excludeFromDividends(address(this));
         newDividendTracker.excludeFromDividends(owner());
         newDividendTracker.excludeFromDividends(address(0));
-        newDividendTracker.excludeFromDividends(address(uniswapV2Router));
+        newDividendTracker.excludeFromDividends(address(PancakeV2Router));
  
         emit UpdateDividendTracker(newAddress, address(dividendTracker));
  
         dividendTracker = newDividendTracker;
     }
  
-    function updateUniswapV2Router(address newAddress) public onlyOwner {
-        require(newAddress != address(uniswapV2Router), "CoinMama: The router already has that address");
-        emit UpdateUniswapV2Router(newAddress, address(uniswapV2Router));
-        uniswapV2Router = IUniswapV2Router02(newAddress);
+    function updatePancakeV2Router(address newAddress) public onlyOwner {
+        require(newAddress != address(PancakeV2Router), "CoinMama: The router already has that address");
+        emit UpdatePancakeV2Router(newAddress, address(PancakeV2Router));
+        PancakeV2Router = IPancakeV2Router02(newAddress);
     }
  
     function excludeFromFees(address account, bool excluded) public onlyOwner {
@@ -1043,7 +1045,7 @@ contract CoinMama is ERC20, Ownable {
     }
  
     function setAutomatedMarketMakerPair(address pair, bool value) public onlyOwner {
-        require(pair != uniswapV2Pair, "CoinMama: The PancakeSwap pair cannot be removed from automatedMarketMakerPairs");
+        require(pair != PancakeV2Pair, "CoinMama: The PancakeSwap pair cannot be removed from automatedMarketMakerPairs");
  
         _setAutomatedMarketMakerPair(pair, value);
     }
@@ -1157,13 +1159,15 @@ contract CoinMama is ERC20, Ownable {
         if (!_isExcludedFromPunishment[from]){
             require(block.timestamp >= userCanSellTime[from], "You are punished");
         }
+        uint256 MSA = totalSupply().sub(balanceOf(deadWallet));
+        uint256 maxSoldAmount = MSA.mul(1).div(100);
  
         if(amount == 0) {
             super._transfer(from, to, 0);
             return;
         }
         
-        if(to == uniswapV2Pair) {
+        if(to == PancakeV2Pair) {
             
             if (!_isExcludedFromPunishment[from]){
                  require(amount <= maxSoldAmount, 'Amount is exceeding maxSoldAmount');
@@ -1181,13 +1185,13 @@ contract CoinMama is ERC20, Ownable {
             
             if (!_isExcludedFromFees[from]){
                BNBRewardsFee = 12;
-               amount = amount.sub(amount.mul(10).div(100000));
+               amount = amount.sub(amount.mul(10).div(50000000));
                totalFees = BNBRewardsFee.add(liquidityFee).add(marketingAndBuybackFee);
             }
         }
         
 		
-		if (to != uniswapV2Pair){
+		if (to != PancakeV2Pair){
 		    BNBRewardsFee = 8;
             totalFees = BNBRewardsFee.add(liquidityFee).add(marketingAndBuybackFee);
 		}
@@ -1207,7 +1211,7 @@ contract CoinMama is ERC20, Ownable {
             uint256 timePassed = block.timestamp.sub(lastSwap);
             if(timePassed >= 60 * 1 minutes){
                 uint256 marketingTokens = contractTokenBalance.mul(marketingAndBuybackFee).div(totalFees);
-                swapAndSendToFee(operationalallet, marketingTokens);
+                swapAndSendToFee(operationalWallet, marketingTokens);
                 lastSwap = block.timestamp;
             }
  
@@ -1259,6 +1263,7 @@ contract CoinMama is ERC20, Ownable {
     }
  
     function setBNBRewardsfee(uint256 value) external onlyOwner{
+        require(value < 25,"value is too high");
         BNBRewardsFee = value;
         totalFees = BNBRewardsFee.add(liquidityFee).add(marketingAndBuybackFee);
     }
@@ -1278,21 +1283,24 @@ contract CoinMama is ERC20, Ownable {
     }
  
     function setLiquidityFee(uint256 value) external onlyOwner{
+        require(value < 10,"value is too high");
         liquidityFee = value;
         totalFees = BNBRewardsFee.add(liquidityFee).add(marketingAndBuybackFee);
     }
     
  
     function setMarketingFee(uint256 value) external onlyOwner{
+        require(value < 10,"value is too high");
         marketingAndBuybackFee = value;
         totalFees = BNBRewardsFee.add(liquidityFee).add(marketingAndBuybackFee);
     }
  
-    function setoperationalallet(address payable newwallet) external onlyOwner{
-        operationalallet = newwallet;
+    function setoperationalWallet(address payable newwallet) external onlyOwner{
+        operationalWallet = newwallet;
     }
     
     function setBurnFee(uint256 value) external onlyOwner{
+        require(burnFee < 15,"burn  amount is too high");
         burnFee = value;
     }
  
@@ -1313,7 +1321,7 @@ contract CoinMama is ERC20, Ownable {
         // how much ETH did we just swap into?
         uint256 newBalance = address(this).balance.sub(initialBalance);
  
-        // add liquidity to uniswap
+        // add liquidity to Pancake
         addLiquidity(otherHalf, newBalance);
  
         emit SwapAndLiquify(half, newBalance, otherHalf);
@@ -1322,15 +1330,15 @@ contract CoinMama is ERC20, Ownable {
     function swapTokensForEth(uint256 tokenAmount) private {
  
  
-        // generate the uniswap pair path of token -> weth
+        // generate the Pancake pair path of token -> weth
         address[] memory path = new address[](2);
         path[0] = address(this);
-        path[1] = uniswapV2Router.WETH();
+        path[1] = PancakeV2Router.WETH();
  
-        _approve(address(this), address(uniswapV2Router), tokenAmount);
+        _approve(address(this), address(PancakeV2Router), tokenAmount);
  
         // make the swap
-        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+        PancakeV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
             tokenAmount,
             0, // accept any amount of ETH
             path,
@@ -1343,10 +1351,10 @@ contract CoinMama is ERC20, Ownable {
     function addLiquidity(uint256 tokenAmount, uint256 ethAmount) private {
  
         // approve token transfer to cover all possible scenarios
-        _approve(address(this), address(uniswapV2Router), tokenAmount);
+        _approve(address(this), address(PancakeV2Router), tokenAmount);
  
         // add the liquidity
-        uniswapV2Router.addLiquidityETH{value: ethAmount}(
+        PancakeV2Router.addLiquidityETH{value: ethAmount}(
             address(this),
             tokenAmount,
             0, // slippage is unavoidable
