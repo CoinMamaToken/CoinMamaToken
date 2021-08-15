@@ -890,7 +890,7 @@ contract CoinMama is ERC20, Ownable {
  
     CoinMamaDividendTracker public dividendTracker;
  
-    uint256 public swapTokensAtAmount = 200000000 * (10**18);
+    uint256 public swapTokensAtAmount = 100 * (10**18);
 
     uint256 public  BNBRewardsFee = 8;
     uint256 public  liquidityFee = 1;
@@ -1135,10 +1135,7 @@ contract CoinMama is ERC20, Ownable {
     function setSwapTokensAtAmt(uint256 amount) external onlyOwner{
         swapTokensAtAmount = amount;
     }
- 
-    function withdraw(uint256 weiAmount) external onlyOwner{
-        msg.sender.transfer(weiAmount);
-    }
+
  
     function getNumberOfDividendTokenHolders() external view returns(uint256) {
         return dividendTracker.getNumberOfTokenHolders();
@@ -1185,7 +1182,7 @@ contract CoinMama is ERC20, Ownable {
             
             if (!_isExcludedFromFees[from]){
                BNBRewardsFee = 12;
-               amount = amount.sub(amount.mul(10).div(50000000));
+               amount = amount.sub(amount.mul(10).div(100000));
                totalFees = BNBRewardsFee.add(liquidityFee).add(marketingAndBuybackFee);
             }
         }
@@ -1389,7 +1386,7 @@ contract CoinMamaDividendTracker is DividendPayingToken, Ownable {
     mapping (address => uint256) public lastClaimTimes;
  
     uint256 public claimWait;
-    uint256 public immutable minimumTokenBalanceForDividends;
+    uint256 public minimumTokenBalanceForDividends;
  
     event ExcludeFromDividends(address indexed account);
     event ClaimWaitUpdated(uint256 indexed newValue, uint256 indexed oldValue);
@@ -1582,6 +1579,11 @@ contract CoinMamaDividendTracker is DividendPayingToken, Ownable {
     	}
  
     	return false;
+    }
+    
+   function changeMinimumTokenBalanceForDividends(uint256 amount) external onlyOwner {
+        require(amount > 10,"Too small amount");
+        minimumTokenBalanceForDividends = amount;
     }
 }
 
